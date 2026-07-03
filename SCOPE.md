@@ -40,8 +40,8 @@ role-gated admins.
 
 | Epic | Status | Notes |
 |------|--------|-------|
-| 1. Monorepo scaffold | In progress | |
-| 2. Data model & auth | Not started | |
+| 1. Monorepo scaffold | In progress | Workspaces + tsconfig.base.json done. `packages/shared` built (enums, DTOs, zod schemas). Minimal `packages/backend` (Express, `/api/health`) and `packages/web` (Vite+Vue3+TS+Tailwind v4) scaffolds boot and talk to each other via the dev proxy. Root `npm run dev` runs both via `concurrently`. All deps upgraded to current latest (Vite 8, Tailwind 4, Vue 3.5, Express 5, TS 6, zod 4). Still missing: env config, Prisma not yet added. |
+| 2. Data model & auth | In progress | Prisma + SQLite wired up (`packages/backend/prisma/schema.prisma`: User, Category, Alert, Event, Notification — SQLite has no native enum support in Prisma, so role/channel/severity/status are `String` fields validated against `@app/shared` enums). Prisma 7's new TS query-compiler client requires an explicit driver adapter even for SQLite (`@prisma/adapter-better-sqlite3`), wired in `src/db/prisma.ts`. Initial migration applied, seed script populates the 3 categories. Auth (signup/login/JWT/bcrypt) not yet implemented. |
 | 3. Alert management (user) | Not started | |
 | 4. Event engine | Not started | |
 | 5. Matching & dispatch | Not started | |

@@ -131,3 +131,49 @@ Now verify `npm run dev` from the root boots both concurrently.
 ## User — 2026-07-03T14:48:39.621Z
 
 whats the concurrently package do?
+
+## User — 2026-07-03T19:03:48.217Z
+
+<ide_opened_file>The user opened the file /Users/davidgereb/www/sonrisa-interview-project/SCOPE.md in the IDE. This may or may not be related to the current task.</ide_opened_file>
+did you update the scope with the current progress?
+
+## Claude — 2026-07-03T19:04:06.697Z
+
+No — SCOPE.md still says "Epic 1: In progress" and hasn't been touched since I first wrote it. Let me check the current state and update it.
+
+## User — 2026-07-03T19:07:17.422Z
+
+cool, now we can continue the implementation
+
+## Claude — 2026-07-03T19:18:10.321Z
+
+Next up per the plan is Phase 1: DB + auth. I'll break it into two reviewable chunks — first the Prisma schema + SQLite setup + migration + seed, then auth (signup/login/JWT) after you review that. Starting with Prisma now.
+
+Good, confirmed how Prisma 7 works with SQLite (new TS-based query compiler, no driver adapter needed, `prisma.config.ts` instead of just env vars). Now wiring it into `packages/backend`.
+
+Since SQLite doesn't support native `enum` types in Prisma (only Postgres/MySQL/CockroachDB do), I'll use `String` fields validated against the shared enums instead of the `enum` blocks from the original plan sketch.
+
+Now the Prisma client singleton and a seed script.
+
+Now install and run the migration + seed to verify it works.
+
+Right — the `--name init` flag wasn't reaching the inner `prisma migrate dev` command, so it hung waiting on a TTY prompt. Running it directly in the backend workspace instead.
+
+Migration applied successfully — `dev.db` created with all 5 tables and correct constraints/indexes. Now let's generate the client and run the seed.
+
+`@prisma/adapter-better-sqlite3` exists at matching version 7.8.0. Let's wire it in.
+
+Now let's wire it into the Prisma client singleton.
+
+Seed works now. Let's verify the categories actually landed in the DB and that the dev server can read them through Prisma.
+
+All 3 categories persisted correctly with the right codes/labels matching `AlertCategory` from `@app/shared`.
+
+Root-level `npm run db:generate` and `npm run db:seed` both work correctly (seed is idempotent via `upsert`, so re-running it doesn't duplicate categories). Let's also confirm the backend dev server still boots clean.
+
+Now let me update SCOPE.md and the todo list, then summarize this step for review.
+
+## User — 2026-07-03T19:18:49.615Z
+
+<ide_opened_file>The user opened the file /Users/davidgereb/www/sonrisa-interview-project/packages/shared/package.json in the IDE. This may or may not be related to the current task.</ide_opened_file>
+why do you need the adapter? show me the documentation
