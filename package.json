@@ -1,0 +1,8 @@
+{
+  "name": "alerts-platform",
+  "private": true,
+  "workspaces": [
+    "packages/backend",
+    "packages/web"
+  ]
+}
