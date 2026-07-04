@@ -1,7 +1,7 @@
 import { createAlertSchema, updateAlertSchema } from "@app/shared";
 import { z } from "zod";
 import { handler } from "~/lib/handler.js";
-import * as alertsService from "./alerts.service.js";
+import * as alertsService from "~/modules/alerts/alerts.service.js";
 
 const idParamsSchema = z.object({ id: z.string() });
 

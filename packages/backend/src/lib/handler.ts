@@ -1,6 +1,6 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import type { z, ZodType } from "zod";
-import { HttpError } from "./http-error.js";
+import { HttpError } from "~/lib/http-error.js";
 
 interface HandlerSchemas {
   params?: ZodType;

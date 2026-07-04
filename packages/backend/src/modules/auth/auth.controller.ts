@@ -1,6 +1,6 @@
 import { loginSchema, signupSchema } from "@app/shared";
 import { handler } from "~/lib/handler.js";
-import * as authService from "./auth.service.js";
+import * as authService from "~/modules/auth/auth.service.js";
 
 export const signupHandler = handler({ body: signupSchema }, async (_req, res, { body }) => {
   const result = await authService.signup(body);

@@ -1,0 +1,21 @@
+meta {
+  name: TriggerEvent
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/admin/events/trigger
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "categoryCode": "breaking-news"
+  }
+}

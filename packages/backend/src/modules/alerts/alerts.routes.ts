@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth } from "~/middleware/auth.middleware.js";
-import { createHandler, listHandler, removeHandler, updateHandler } from "./alerts.controller.js";
+import { createHandler, listHandler, removeHandler, updateHandler } from "~/modules/alerts/alerts.controller.js";
 
 export const alertsRouter = Router();
 
