@@ -488,3 +488,300 @@ create a rule in .claude, so after you implement any route you should add it to 
 ## User — 2026-07-04T08:19:37.503Z
 
 nice
+
+## User — 2026-07-04T08:20:29.215Z
+
+lets start the epic 3, but before you start any implementation show me your plan
+
+## Claude — 2026-07-04T08:21:05.661Z
+
+This is a new task (Epic 3, not Epic 2 auth), so I'll start a fresh plan file. Let me look at the current codebase state — the shared alert schemas/DTOs, the auth module pattern to replicate, and the frontend scaffold.
+
+## User — 2026-07-04T08:21:32.677Z
+
+<task-notification>
+<task-id>a509ce0188555ba64</task-id>
+<tool-use-id>toolu_01XZQTkuhQpNDY7YhWbJHzRj</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-davidgereb-www-sonrisa-interview-project/d874a8a7-aeee-4aae-adb6-4dda2e4fe1b0/tasks/a509ce0188555ba64.output</output-file>
+<status>completed</status>
+<summary>Agent "Explore frontend scaffold structure" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>All findings confirmed. Report below.
+
+## 1. File listing — `packages/web/`
+
+Root config: `package.json`, `vite.config.ts`, `tsconfig.json`, `tsconfig.tsbuildinfo`, `index.html`, `CLAUDE.md`
+
+`src/` (flat, only 4 files, no subdirectories exist yet):
+```
+src/App.vue
+src/main.ts
+src/style.css
+src/vite-env.d.ts
+```
+No `router.ts`, no `store/`, no `components/`, no `pages/`, no `composables/`.
+
+## 2. Vue Router / Pinia — NOT installed, NOT wired up
+
+`package.json` deps:
+```json
+"dependencies": { "vue": "^3.5.39" },
+"devDependencies": {
+  "@tailwindcss/vite": "^4.3.2",
+  "@vitejs/plugin-vue": "^6.0.7",
+  "tailwindcss": "^4.3.2",
+  "typescript": "^6.0.3",
+  "vite": "^8.1.3",
+  "vue-tsc": "^3.3.6"
+}
+```
+No `vue-router`, no `pinia` anywhere in deps, `node_modules`, or source. This confirms they are currently only aspirational in SCOPE.md's tech stack list, not present in code. Notably, `.claude/rules/vue-patterns.md` already references `src/router.ts` and nested route layouts as if it exists — it does not yet; that file will need to be created as part of Epic 3.
+
+## 3. `App.vue` and `main.ts`
+
+`main.ts` (5 lines, no router/store wiring):
+```ts
+import { createApp } from "vue";
+import "./style.css";
+import App from "./App.vue";
+
+createApp(App).mount("#app");
+```
+
+`App.vue` is the entire app today — a single component doing a health-check fetch on mount and rendering a status pill. No `&lt;router-view&gt;`, no layout, no navigation.
+
+## 4. `components/ui/` — does not exist
+
+No `components/` directory at all under `src/`. Per `.claude/rules/vue-patterns.md`, base UI blocks should live in `src/components/ui` and be reused first — this must be created from scratch for Epic 3.
+
+## 5. API client / fetch wrapper — none exists
+
+No composable, no `useApi`, no fetch wrapper. The only network call in the codebase is the raw inline `fetch` in `App.vue`:
+```ts
+const res = await fetch("/api/health");
+if (!res.ok) throw new Error(`HTTP ${res.status}`);
+const data = await res.json();
+```
+Any API client for alerts CRUD/auth will need to be built new.
+
+## 6. Tailwind — v4, CSS-first config, no `tailwind.config.*`
+
+`tailwind: ^4.3.2` and `@tailwindcss/vite: ^4.3.2`, wired via the Vite plugin in `vite.config.ts` (`tailwindcss()` plugin call). No `tailwind.config.js/ts` file exists. Config is CSS-based: `src/style.css` is just `@import "tailwindcss";` (1 line).
+
+## 7. `vite.config.ts` (exact content)
+
+```ts
+import { fileURLToPath, URL } from "node:url";
+import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
+import tailwindcss from "@tailwindcss/vite";
+
+export default defineConfig({
+  plugins: [vue(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
+  server: {
+    proxy: {
+      "/api": "http://localhost:3000",
+    },
+  },
+});
+```
+`@` alias points to `src/`, and a dev proxy forwards `/api` to `http://localhost:3000` (the backend), matching `tsconfig.json`'s `"@/*": ["./src/*"]` paths entry.
+
+**Summary for planning:** Epic 1's scaffold is truly minimal — Vue 3 + Vite + TS + Tailwind v4 + `@` alias + `/api` proxy only. Epic 3 will need to add `vue-router` and `pinia` as new dependencies, create `src/router.ts`, a store setup, `src/components/ui/`, `src/pages/` (or similar), and an API client composable — none of this scaffolding exists yet.</result>
+<usage><subagent_tokens>15285</subagent_tokens><tool_uses>7</tool_uses><duration_ms>30017</duration_ms></usage>
+</task-notification>
+
+## Claude — 2026-07-04T08:25:27.566Z
+
+Now let me get a detailed design for the frontend piece, since that's genuinely new territory (no router/store/component patterns exist yet).
+
+I've kicked off a design pass for the frontend architecture (router, Pinia store, API client, components). I'll draft the backend design myself in parallel since it closely mirrors the existing auth module.
+
+Good, this confirms the backend plan is sound. Now let's wait for the frontend design agent to finish before finalizing the plan.
+
+## User — 2026-07-04T08:25:52.907Z
+
+<task-notification>
+<task-id>afd26bec5bde0ee6a</task-id>
+<tool-use-id>toolu_0197R2hoctp7RLn8vDXFcv9M</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-davidgereb-www-sonrisa-interview-project/d874a8a7-aeee-4aae-adb6-4dda2e4fe1b0/tasks/afd26bec5bde0ee6a.output</output-file>
+<status>completed</status>
+<summary>Agent "Design frontend auth+dashboard architecture" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Good, I have enough. Now producing the plan.
+
+## Frontend Implementation Plan — Epic 3 (Alerts UI)
+
+### 1. New dependencies
+
+Add to `packages/web/package.json` dependencies:
+- `vue-router` (^4.5.x — first version with full Vue 3.5 / Vite 8 support, no known incompatibilities)
+- `pinia` (^2.3.x — Pinia 2 is the stable line for Vue 3.5; Pinia 3 also works but 2.3 is what most Vue 3 setups pin to, either is fine here, no blocking issue either way)
+
+No devDependency changes needed. `@app/shared` is already a workspace package — confirm `packages/web/package.json` has `"@app/shared": "*"` (or workspace protocol) as a dependency; if it's missing today it must be added, since the plan relies on importing enums/schemas/DTOs from it.
+
+### 2. Router — `packages/web/src/router.ts`
+
+Layout strategy: introduce **one layout route now** even though there's a single authenticated page today, because Epic 6 adds admin views that need the same nav/logout chrome plus role-gating, and retrofitting a layout after pages exist is exactly the rework SCOPE.md wants to avoid. This is not over-engineering — it's a single wrapper component, not a nested layout tree.
+
+```
+src/router.ts
+src/layouts/AuthenticatedLayout.vue   (nav bar + &lt;router-view/&gt;)
+```
+
+Routes:
+- `{ path: "/login", name: "login", component: LoginPage, meta: { requiresAuth: false } }`
+- `{ path: "/signup", name: "signup", component: SignupPage, meta: { requiresAuth: false } }`
+- `{ path: "/", component: AuthenticatedLayout, meta: { requiresAuth: true }, children: [ { path: "", name: "dashboard", component: DashboardPage } ] }` — the empty child path is the pattern that scales cleanly: Epic 6 adds `{ path: "admin", name: "admin-dashboard", meta: { roles: ["admin"] }, component: AdminPage }` as a sibling child under the same layout, inheriting `requiresAuth` from the parent (route meta merges from matched records, so child doesn't need to repeat `requiresAuth: true`).
+- Catch-all: `{ path: "/:pathMatch(.*)*", redirect: "/" }`
+
+`meta` typing: augment `RouteMeta` via `declare module "vue-router"` in `router.ts` with `requiresAuth?: boolean; roles?: Role[]`, importing `Role` from `@app/shared`. This is the concrete mechanism for the "role + router meta" gating SCOPE.md calls for, wired now, consumed later.
+
+`beforeEach` guard:
+```ts
+router.beforeEach((to) =&gt; {
+  const auth = useAuthStore();
+  const requiresAuth = to.matched.some((r) =&gt; r.meta.requiresAuth);
+  const allowedRoles = to.matched.flatMap((r) =&gt; r.meta.roles ?? []);
+  if (requiresAuth &amp;&amp; !auth.isAuthenticated) return { name: "login" };
+  if (allowedRoles.length &amp;&amp; !allowedRoles.includes(auth.user?.role as Role)) return { name: "dashboard" };
+  if (!requiresAuth &amp;&amp; auth.isAuthenticated &amp;&amp; (to.name === "login" || to.name === "signup")) {
+    return { name: "dashboard" };
+  }
+  return true;
+});
+```
+Note: the store must already be hydrated from `localStorage` before the router runs its first guard — handled in main.ts wiring (step 8), not inside the guard itself, to keep the guard synchronous and side-effect-free.
+
+### 3. Pinia store — `packages/web/src/stores/auth.store.ts`
+
+```ts
+export const useAuthStore = defineStore("auth", () =&gt; {
+  const token = ref&lt;string | null&gt;(localStorage.getItem("auth_token"));
+  const user = ref&lt;UserResponse | null&gt;(null);
+
+  const isAuthenticated = computed(() =&gt; !!token.value);
+  const isAdmin = computed(() =&gt; user.value?.role === Role.ADMIN);
+
+  async function login(payload: LoginRequest) { ... api.post&lt;AuthResponse&gt;("/api/auth/login", payload) ...; setSession(res); }
+  async function signup(payload: SignupRequest) { ... same via /api/auth/signup ... }
+  async function hydrate() { // called once at app start if token exists
+    if (!token.value) return;
+    try { user.value = await api.get&lt;UserResponse&gt;("/api/auth/me"); }
+    catch { logout(); } // stale/invalid token
+  }
+  function logout() { token.value = null; user.value = null; localStorage.removeItem("auth_token"); }
+  function setSession(res: AuthResponse) { token.value = res.token; user.value = res.user; localStorage.setItem("auth_token", res.token); }
+
+  return { token, user, isAuthenticated, isAdmin, login, signup, logout, hydrate };
+});
+```
+
+Store only persists the token in `localStorage`; `user` is refetched via `hydrate()` (`GET /api/auth/me`) on app boot rather than also persisting the user object — avoids stale role/email data surviving a backend-side change, at the cost of one extra request on refresh, which is the right trade for an admin-role-gated app.
+
+**Alerts: page-level composable, not a Pinia store — recommended, not hedged.** Reasoning: alerts are single-page, single-owner data (current user's own list, no cross-page/cross-component sharing today), fetched/mutated entirely within `DashboardPage`. The project rule is explicit — "queries, store wiring... in pages; reusable logic in composables" — and Pinia is for cross-cutting app state (auth is cross-cutting: router guards, nav bar, every API call need it). Putting alerts in Pinia would be speculative global state for data with exactly one consumer. Use `src/composables/useAlerts.ts` exposing `alerts`, `isLoading`, `error`, and `fetchAlerts/createAlert/updateAlert/removeAlert` methods that call the API client and mutate a local `ref&lt;AlertResponse[]&gt;`. `DashboardPage.vue` calls this composable and passes data/handlers down as props — this is orchestration, not a store.
+
+### 4. API client — `packages/web/src/lib/api.ts`
+
+```ts
+export class ApiError extends Error {
+  constructor(public status: number, message: string) { super(message); }
+}
+
+async function request&lt;T&gt;(path: string, options: RequestInit = {}): Promise&lt;T&gt; {
+  const auth = useAuthStore();
+  const headers = new Headers(options.headers);
+  headers.set("Content-Type", "application/json");
+  if (auth.token) headers.set("Authorization", `Bearer ${auth.token}`);
+
+  const res = await fetch(path, { ...options, headers });
+  if (res.status === 204) return undefined as T;
+
+  const body = await res.json().catch(() =&gt; null);
+  if (!res.ok) {
+    throw new ApiError(res.status, body?.error ?? `Request failed with status ${res.status}`);
+  }
+  return body as T;
+}
+
+export const api = {
+  get: &lt;T&gt;(path: string) =&gt; request&lt;T&gt;(path),
+  post: &lt;T&gt;(path: string, data?: unknown) =&gt; request&lt;T&gt;(path, { method: "POST", body: JSON.stringify(data) }),
+  patch: &lt;T&gt;(path: string, data?: unknown) =&gt; request&lt;T&gt;(path, { method: "PATCH", body: JSON.stringify(data) }),
+  delete: (path: string) =&gt; request&lt;void&gt;(path, { method: "DELETE" }),
+};
+```
+Calling `useAuthStore()` inside a plain module function works fine as long as Pinia is installed before first call (guaranteed by main.ts ordering) — no need to pass the store in explicitly. Callers catch `ApiError` and read `.message` for display (e.g. `error.value = e instanceof ApiError ? e.message : "Something went wrong"`).
+
+`CategoryResponse` type: `packages/shared/src/dto` doesn't yet have a categories DTO (only alert/auth/user/event/notification exist). Since backend for `GET /api/categories` is being built in parallel, define `interface CategoryResponse { id: string; code: AlertCategory; label: string }` locally in `packages/web/src/types/category.ts` for now, importing `AlertCategory` from `@app/shared`. Flag to the backend task owner that this ideally becomes a shared DTO later — not blocking for this plan.
+
+### 5. Base UI components — `packages/web/src/components/ui/`
+
+Minimal set actually consumed by login/signup/alerts forms:
+- `BaseButton.vue` — props `variant?: "primary"|"secondary"|"danger"`, `disabled?`, `loading?`; slot for label.
+- `BaseInput.vue` — wraps `&lt;input&gt;`, props `modelValue`, `label`, `type?`, `error?`; emits `update:modelValue`; used for email/password fields.
+- `BaseSelect.vue` — wraps `&lt;select&gt;`, props `modelValue`, `label`, `options: {value, label}[]`; emits `update:modelValue`; used for category/channel pickers.
+- `BaseCard.vue` — simple bordered/padded container with optional slot header; used to wrap login/signup forms and each alert row.
+
+No `BaseCheckbox`/`BaseToggle` as a separate component — `isEnabled` toggle on an alert can be a native checkbox styled inline inside `AlertListItem.vue`, or reuse `BaseButton` as a toggle action ("Enable"/"Disable"). Recommend a plain styled `&lt;input type="checkbox"&gt;` bound directly rather than a new base component — one usage site doesn't justify an abstraction yet.
+
+### 6. Pages — `packages/web/src/pages/`
+
+- `LoginPage.vue` — local `ref` for email/password, `error`, `isSubmitting`; calls `authStore.login()`; on success `router.push({ name: "dashboard" })`; on `ApiError` sets `error.value`. Uses `BaseCard` + `BaseInput` + `BaseButton`. Link to `/signup`.
+- `SignupPage.vue` — mirrors LoginPage, calls `authStore.signup()`, same redirect.
+- `DashboardPage.vue` — orchestration only:
+  - `useAlerts()` composable for alert state/actions.
+  - fetches categories via a small `useCategories()` composable (`src/composables/useCategories.ts`, same fetch-once-and-cache-in-ref pattern, since categories are static reference data any logged-in user can read) or inline `api.get&lt;CategoryResponse[]&gt;("/api/categories")` in `onMounted` — recommend the composable for symmetry with `useAlerts` and because `AlertForm` also needs the category list.
+  - renders `&lt;AlertForm&gt;` (create) and `&lt;AlertList&gt;` (existing), wiring their emits to the composable's mutator functions.
+
+Alert component breakdown under `packages/web/src/components/alerts/`:
+- `AlertForm.vue` — props `categories: CategoryResponse[]`, `isSubmitting?`; emits `create: {categoryCode, channel}`; internal `BaseSelect` x2 (category, channel) + `BaseButton` submit; local validation (required fields) before emit, using `createAlertSchema` from `@app/shared` via `.safeParse()` for client-side validation consistent with backend rules.
+- `AlertList.vue` — props `alerts: AlertResponse[]`, `isLoading?`; renders `AlertListItem` per row; empty-state message when `alerts.length === 0`.
+- `AlertListItem.vue` — props `alert: AlertResponse`; emits `updateChannel`, `toggleEnabled`, `remove`; uses `BaseSelect` for channel change, checkbox for enabled, `BaseButton` (variant danger) for delete with a simple `confirm()`-style guard (no need for a modal component given scope).
+
+### 7. Layout — `packages/web/src/layouts/AuthenticatedLayout.vue`
+
+Recommend a real layout component now (see router rationale above): top nav bar showing `authStore.user?.email`, a "Logout" `BaseButton` calling `authStore.logout()` then `router.push({ name: "login" })`, and `&lt;router-view /&gt;` below it. This is the minimal chrome Epic 6's admin page will also need (same nav, maybe an added "Admin" link gated by `authStore.isAdmin`), so building it as a layout route wrapper rather than inlining nav markup into `DashboardPage.vue` avoids duplicating the nav when the second authenticated page arrives.
+
+### 8. `main.ts` wiring
+
+```ts
+import { createApp } from "vue";
+import { createPinia } from "pinia";
+import "./style.css";
+import App from "./App.vue";
+import router from "./router";
+import { useAuthStore } from "./stores/auth.store";
+
+const app = createApp(App);
+app.use(createPinia());
+app.use(router);
+
+const auth = useAuthStore();
+auth.hydrate().finally(() =&gt; {
+  app.mount("#app");
+});
+```
+Mounting is deferred until `hydrate()` resolves so the very first router navigation (guard) sees a correctly populated `user`/`isAuthenticated` state, avoiding a login-page flash for users with a valid persisted token. `App.vue` shrinks to just `&lt;router-view /&gt;` (the current raw `/api/health` fetch logic in `App.vue` is dropped/replaced — it was placeholder scaffolding, not a feature requirement).
+
+### Sequencing notes
+1. Add deps, wire `main.ts` skeleton (router + pinia installed, empty router.ts) first so the dev server keeps building incrementally.
+2. Build `api.ts` + `auth.store.ts` before any page, since everything depends on them.
+3. Build `router.ts` + `AuthenticatedLayout.vue` next (can stub `DashboardPage` as empty div initially).
+4. Build `ui/` base components.
+5. Build `LoginPage`/`SignupPage` and verify the auth flow end-to-end against the running backend.
+6. Build `useCategories`, `useAlerts`, alert components, wire into `DashboardPage`.
+
+### Critical Files for Implementation
+- /Users/davidgereb/www/sonrisa-interview-project/packages/web/src/router.ts
+- /Users/davidgereb/www/sonrisa-interview-project/packages/web/src/stores/auth.store.ts
+- /Users/davidgereb/www/sonrisa-interview-project/packages/web/src/lib/api.ts
+- /Users/davidgereb/www/sonrisa-interview-project/packages/web/src/pages/DashboardPage.vue
+- /Users/davidgereb/www/sonrisa-interview-project/packages/web/src/main.ts</result>
+<usage><subagent_tokens>19112</subagent_tokens><tool_uses>4</tool_uses><duration_ms>76592</duration_ms></usage>
+</task-notification>
