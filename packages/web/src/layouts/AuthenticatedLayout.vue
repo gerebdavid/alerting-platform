@@ -1,0 +1,28 @@
+<script setup lang="ts">
+import { useRouter } from "vue-router";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import { useAuthStore } from "@/stores/auth.store";
+
+const auth = useAuthStore();
+const router = useRouter();
+
+async function handleLogout() {
+  auth.logout();
+  await router.push({ name: "login" });
+}
+</script>
+
+<template>
+  <div class="min-h-screen bg-slate-50">
+    <header class="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+      <span class="text-lg font-semibold text-slate-800">Alerts Platform</span>
+      <div class="flex items-center gap-4">
+        <span class="text-sm text-slate-600">{{ auth.user?.email }}</span>
+        <BaseButton variant="secondary" @click="handleLogout">Logout</BaseButton>
+      </div>
+    </header>
+    <main class="mx-auto max-w-3xl px-6 py-8">
+      <router-view />
+    </main>
+  </div>
+</template>

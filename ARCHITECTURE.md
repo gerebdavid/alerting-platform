@@ -72,17 +72,51 @@ Migrations live in `prisma/migrations/`. Note: `prisma migrate dev` requires a T
 
 ## Frontend (`packages/web`)
 
-Vue 3 + Vite + TypeScript + Tailwind v4 (CSS-first config, no `tailwind.config.*`). Currently just the Epic 1 scaffold — `App.vue`/`main.ts` with no router, store, or pages yet (Epic 3, in progress, adds all of that: `vue-router`, Pinia stores, an API client, and the first real pages). This section will expand once that lands.
+Vue 3 + Vite + TypeScript + Tailwind v4 (CSS-first config, no `tailwind.config.*`) + Vue Router + Pinia.
 
 - `@/*` → `packages/web/src/*` (mirrors the backend's `~/*` alias; configured in both `tsconfig.json` `paths` for type-checking and `vite.config.ts` `resolve.alias` for the actual bundler resolution, since Vite doesn't read `tsconfig.json` paths on its own).
 - Vite dev server proxies `/api/*` → `http://localhost:3000` (the backend), so the frontend always calls relative `/api/...` paths — no CORS config needed in dev, and the same relative paths work unmodified once both are served from one origin in production.
 
+### App shell & routing (`src/main.ts`, `src/router.ts`)
+
+`main.ts` installs Pinia and the router, then calls `useAuthStore().hydrate()` and defers `app.mount()` until it resolves — so the first route navigation always sees correct auth state (no login-page flash for an already-logged-in user with a stored token). `App.vue` is just `<router-view />`.
+
+`router.ts` defines two kinds of routes:
+- Public: `/login`, `/signup` (`meta.requiresAuth: false`).
+- Authenticated: a layout route at `/` (`meta.requiresAuth: true`, component `layouts/AuthenticatedLayout.vue`) with a `dashboard` child at the empty path. Future authenticated pages (e.g. Epic 6's admin views) are added as sibling children under the same layout, gated with `meta.roles: Role[]` — the `RouteMeta` interface is augmented (`declare module "vue-router"`) specifically so this scales without reworking the router.
+
+A single `router.beforeEach` guard reads `useAuthStore()` and redirects: unauthenticated users away from `requiresAuth` routes to `/login`; authenticated users away from `/login`/`/signup` to `dashboard`; users lacking a required role to `dashboard`.
+
+### State (`src/stores/`)
+
+Three Pinia setup-stores, each owning one slice of server state:
+- `auth.store.ts` — `token` (persisted to `localStorage`) + `user` (re-fetched via `GET /api/auth/me` on `hydrate()` rather than persisted, so a stale role/email never survives a refresh); `login`/`signup`/`logout` actions.
+- `categories.store.ts` — fetch-once cache of `GET /api/categories` (static reference data).
+- `alerts.store.ts` — the current user's alerts; `fetchAlerts`/`createAlert`/`updateAlert`/`removeAlert`, each mutating the local `alerts` ref after a successful API call.
+
+All three are stores (not page-local composables) so they're reusable across pages — e.g. Epic 6's admin views are expected to read from `categories.store.ts` too.
+
+### API client (`src/lib/api.ts`)
+
+A thin `fetch` wrapper: `api.get/post/patch/delete`. Reads the token from `useAuthStore()` and attaches `Authorization: Bearer <token>` when present; throws `ApiError(status, message)` on a non-2xx response, reading `message` from the backend's `{ error: string }` shape.
+
+If a request that *carried* a token comes back `401` (expired/tampered/revoked session — e.g. the token was edited directly in `localStorage`), `api.ts` treats that as "the session is dead" and unilaterally calls `auth.logout()` + redirects to `/login`, in addition to throwing `ApiError` as normal. A `401` on a request with no token attached (e.g. wrong password on `/api/auth/login`) is left alone — that's just a normal error for the caller to display, not a session invalidation. Because this lives in the one shared `request()` function, every store/page gets this behavior for free without special-casing 401s themselves.
+
+This creates a deliberate three-way circular import — `api.ts` → `router.ts` → `auth.store.ts` → `api.ts` — safe here because all three only reference each other inside function bodies (route guards, request handlers, store actions), never at module-evaluation time.
+
+### UI composition (`src/components/`, `src/pages/`, `src/layouts/`)
+
+- `components/ui/` — base building blocks (`BaseButton`, `BaseInput`, `BaseSelect`, `BaseCard`), reused everywhere forms/lists appear. New UI needs should extend or reuse these before adding new one-off elements (`.claude/rules/vue-patterns.md`).
+- `components/alerts/` — `AlertForm` (create form, client-side validated via `createAlertSchema.safeParse` from `@app/shared` before emitting) and `AlertList`/`AlertListItem` (presentational; emit `updateChannel`/`toggleEnabled`/`remove` up to the page).
+- `pages/` — orchestration only: `LoginPage`/`SignupPage` wire the auth store to a form; `DashboardPage` wires `alerts.store.ts` + `categories.store.ts` and renders the alert components, with no direct API calls of its own.
+- `layouts/AuthenticatedLayout.vue` — nav bar (user email + logout) + `<router-view />`, shared by every authenticated page so new ones (Epic 6) don't duplicate that chrome.
+
 ## Auth flow (cross-cutting)
 
-1. `POST /api/auth/signup` or `/login` → backend issues a JWT (`{ userId, role }` payload, `jsonwebtoken`, expiry via `JWT_EXPIRES_IN`) and returns it in the JSON body (not a cookie — the whole app uses header-based auth by design, so the frontend is responsible for storing and attaching the token).
-2. Every subsequent authenticated request carries `Authorization: Bearer <token>`.
+1. `POST /api/auth/signup` or `/login` → backend issues a JWT (`{ userId, role }` payload, `jsonwebtoken`, expiry via `JWT_EXPIRES_IN`) and returns it in the JSON body (not a cookie — the whole app uses header-based auth by design).
+2. The frontend's `auth.store.ts` persists the token to `localStorage` and attaches it as `Authorization: Bearer <token>` on every request via `src/lib/api.ts`.
 3. `requireAuth` middleware verifies the token per-request and populates `req.user`; there is no server-side session store — the JWT itself is the credential, valid until it expires.
-4. Role-gated routes (none yet in the API beyond the `role` field existing — Epic 6 adds admin-only endpoints) add `requireRole("admin")` after `requireAuth` in the route chain.
+4. Role-gated routes (none yet in the API beyond the `role` field existing — Epic 6 adds admin-only endpoints) add `requireRole("admin")` after `requireAuth` in the route chain. The frontend router mirrors this with `meta.roles` on route records.
 
 ## API testing (`bruno/`)
 
