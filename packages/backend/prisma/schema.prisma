@@ -60,14 +60,14 @@ model Event {
 model Notification {
   id        String   @id @default(cuid())
   eventId   String
-  alertId   String
+  alertId   String?
   userId    String
   channel   String
   status    String
   detail    String
   createdAt DateTime @default(now())
   event     Event    @relation(fields: [eventId], references: [id])
-  alert     Alert    @relation(fields: [alertId], references: [id])
+  alert     Alert?   @relation(fields: [alertId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([eventId])

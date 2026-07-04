@@ -84,7 +84,7 @@ User ──< Alert >── Category ──< Event
 - `Category` — the fixed set of alert categories (seeded, not user-created).
 - `Alert` — a user's subscription to `category + channel`; `@@unique([userId, categoryId, channel])` prevents duplicates at the DB level (backed by an app-layer check in `alerts.service.ts` for a friendlier 409 before the constraint would even fire).
 - `Event` — created by `modules/events/` (Epic 4) via the admin trigger endpoint; `triggeredById` records which admin fired it, `payload` is a JSON-stringified blob (SQLite has no native JSON column type here) of extra mock data.
-- `Notification` — one row per dispatch attempt, created by `modules/notifications/dispatcher.ts` (Epic 5); `status`/`detail` record the outcome (`"sent"` for the mock channels today, `"failed"` if a channel throws).
+- `Notification` — one row per dispatch attempt, created by `modules/notifications/dispatcher.ts` (Epic 5); `status`/`detail` record the outcome (`"sent"` for the mock channels today, `"failed"` if a channel throws). `alertId` is nullable with `onDelete: SetNull` — deleting an `Alert` that has notification history doesn't fail (the FK would otherwise reject it) and doesn't erase the history either; the `Notification` row survives as an audit record with `alertId` set to `null`. (`eventId` has no such handling — events aren't deletable through any current endpoint, so that FK stays `Restrict`.)
 
 Migrations live in `prisma/migrations/`. Note: `prisma migrate dev` requires a TTY and doesn't work in a non-interactive shell here — migrations in this project so far were created by generating the SQL diff (`prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`) into a hand-made timestamped migration folder, then applying it with `prisma migrate deploy` (see `.claude/rules/prisma-migration.md`).
 
@@ -111,20 +111,22 @@ It's imported into `src/style.css` right after `@import "tailwindcss"`. Every co
 
 `main.ts` installs Pinia and the router, then calls `useAuthStore().hydrate()` and defers `app.mount()` until it resolves — so the first route navigation always sees correct auth state (no login-page flash for an already-logged-in user with a stored token). `App.vue` is just `<router-view />`.
 
-`router.ts` defines two kinds of routes:
+`router.ts` defines three kinds of routes:
 - Public: `/login`, `/signup` (`meta.requiresAuth: false`).
-- Authenticated: a layout route at `/` (`meta.requiresAuth: true`, component `layouts/AuthenticatedLayout.vue`) with a `dashboard` child at the empty path. Future authenticated pages (e.g. Epic 6's admin views) are added as sibling children under the same layout, gated with `meta.roles: Role[]` — the `RouteMeta` interface is augmented (`declare module "vue-router"`) specifically so this scales without reworking the router.
+- Authenticated: a layout route at `/` (`meta.requiresAuth: true`, component `layouts/AuthenticatedLayout.vue`) with a `dashboard` child at the empty path.
+- Admin: a nested `admin` route under the same authenticated layout, component `layouts/AdminLayout.vue`, gated with `meta.roles: [Role.ADMIN]` (the first real use of the `meta.roles` mechanism that was set up in Epic 3 ahead of time). Its own children are Epic 6's individual admin pages — today just `admin-trigger-event`, with a redirect from the bare `admin` path to it. `AdminLayout.vue` renders a small tab-style sub-nav (one entry per admin page) + `<router-view />`, so each new admin page (notification log, alert management, user management) is one new child route + one new tab entry, no rework of the shell.
 
-A single `router.beforeEach` guard reads `useAuthStore()` and redirects: unauthenticated users away from `requiresAuth` routes to `/login`; authenticated users away from `/login`/`/signup` to `dashboard`; users lacking a required role to `dashboard`.
+A single `router.beforeEach` guard reads `useAuthStore()` and redirects: unauthenticated users away from `requiresAuth` routes to `/login`; authenticated users away from `/login`/`/signup` to `dashboard`; users lacking a required role (checked via `to.matched.flatMap(r => r.meta.roles ?? [])`) to `dashboard`.
 
 ### State (`src/stores/`)
 
-Three Pinia setup-stores, each owning one slice of server state:
+Pinia setup-stores, each owning one slice of server state:
 - `auth.store.ts` — `token` (persisted to `localStorage`) + `user` (re-fetched via `GET /api/auth/me` on `hydrate()` rather than persisted, so a stale role/email never survives a refresh); `login`/`signup`/`logout` actions.
 - `categories.store.ts` — fetch-once cache of `GET /api/categories` (static reference data).
 - `alerts.store.ts` — the current user's alerts; `fetchAlerts`/`createAlert`/`updateAlert`/`removeAlert`, each mutating the local `alerts` ref after a successful API call.
+- `admin-events.store.ts` — admin-only; `triggerEvent(input)` posts to `/api/admin/events/trigger` and holds only the *most recent* result (`lastResult`) — a running history of past triggers is the separately-planned notification log page's job, not this store's.
 
-All three are stores (not page-local composables) so they're reusable across pages — e.g. Epic 6's admin views are expected to read from `categories.store.ts` too.
+These are stores (not page-local composables) so they're reusable across pages — `categories.store.ts` is already shared between the user dashboard and the admin trigger-event page.
 
 ### API client (`src/lib/api.ts`)
 
@@ -138,8 +140,9 @@ This creates a deliberate three-way circular import — `api.ts` → `router.ts`
 
 - `components/ui/` — base building blocks (`BaseButton`, `BaseInput`, `BaseSelect`, `BaseCard`), reused everywhere forms/lists appear. New UI needs should extend or reuse these before adding new one-off elements (`.claude/rules/vue-patterns.md`).
 - `components/alerts/` — `AlertForm` (create form, client-side validated via `createAlertSchema.safeParse` from `@app/shared` before emitting) and `AlertList`/`AlertListItem` (presentational; emit `updateChannel`/`toggleEnabled`/`remove` up to the page).
-- `pages/` — orchestration only: `LoginPage`/`SignupPage` wire the auth store to a form; `DashboardPage` wires `alerts.store.ts` + `categories.store.ts` and renders the alert components, with no direct API calls of its own.
-- `layouts/AuthenticatedLayout.vue` — nav bar (user email + logout) + `<router-view />`, shared by every authenticated page so new ones (Epic 6) don't duplicate that chrome.
+- `pages/` — orchestration only: `LoginPage`/`SignupPage` wire the auth store to a form; `DashboardPage` wires `alerts.store.ts` + `categories.store.ts` and renders the alert components; `AdminTriggerEventPage` wires `admin-events.store.ts` + `categories.store.ts`, client-side validates via `triggerMockEventSchema.safeParse`, and renders the last trigger's event + notifications inline. None make direct API calls of their own — that's always the stores' job.
+- `layouts/AuthenticatedLayout.vue` — nav bar (user email, logout, and a toggle link shown only when `auth.isAdmin`: "Admin" when on the user side, "← Dashboard" when already under `/admin/*`, based on `route.path.startsWith("/admin")`) + `<router-view />`, shared by every authenticated page.
+- `layouts/AdminLayout.vue` — nested inside `AuthenticatedLayout` for the `/admin/*` routes: a tab-style sub-nav + `<router-view />`. Each Epic 6 admin page adds one entry to its `tabs` array.
 
 ## Auth flow (cross-cutting)
 
