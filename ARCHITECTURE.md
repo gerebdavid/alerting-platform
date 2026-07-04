@@ -33,11 +33,23 @@ HTTP request
   ← errors bubble to next(err) → middleware/error.middleware.ts → { error: string } JSON response
 ```
 
-Every feature module (`src/modules/<name>/`) follows the same three-file shape — see `modules/auth/` as the reference implementation, replicated by `modules/categories/` and `modules/alerts/`:
+Every feature module (`src/modules/<name>/`) follows the same three-file shape — see `modules/auth/` as the reference implementation, replicated by `modules/categories/`, `modules/alerts/`, and `modules/events/`:
 
 - `*.routes.ts` — Express `Router`, mounts middleware and maps HTTP verbs to controller handlers.
 - `*.controller.ts` — thin: built with `handler()` (`src/lib/handler.ts`), which zod-validates `{ params?, query?, body? }` and hands the parsed data to the callback as a typed third argument, auto-throwing `HttpError(400, ...)` on validation failure and forwarding thrown/rejected errors to `next()`.
 - `*.service.ts` — the actual logic: Prisma queries, ownership checks, mapping DB rows to shared-package `*Response` DTOs (`toXResponse` helper per module).
+
+Admin-only endpoints live under a separate `/api/admin/*` prefix (first used by `modules/events/`), mounted with both `requireAuth` and `requireRole(Role.ADMIN)` on the router — this namespace is where Epic 6's other admin endpoints (user management, alert management, notification log) will also live.
+
+### Event generation (`src/modules/events/`)
+
+Per SCOPE.md's fixed design decision, mock event data is generated behind an `EventSource` interface (`event-source.ts`) so a real feed can replace it later without touching callers:
+```ts
+interface EventSource {
+  generate(input: { categoryCode: AlertCategory; severity?: EventSeverity }): GeneratedEvent;
+}
+```
+`mock-event-source.ts`'s `MockEventSource` is the only implementation today — a handful of canned title/description templates per category, a fixed `sourceName` per category, and a random `severity` fallback when the caller doesn't specify one. `events.service.ts` holds a single module-level `const eventSource: EventSource = new MockEventSource()`; swapping in a real source later is a one-line change. `POST /api/admin/events/trigger` (admin-only) is the only way to create an `Event` row right now — it returns `TriggerMockEventResponse { event, notifications: [] }`; the `notifications` array is a deliberate stub until Epic 5 builds the matcher/dispatcher that will populate it.
 
 ### Cross-cutting building blocks (`src/lib/`, `src/middleware/`, `src/config/`)
 
@@ -62,7 +74,8 @@ User ──< Alert >── Category ──< Event
 - `User` — email/passwordHash/role (`"user"|"admin"` as a plain string — SQLite has no native enum type in Prisma, so role/channel/severity/status are strings validated against `@app/shared`'s enums at the app layer, not the DB layer).
 - `Category` — the fixed set of alert categories (seeded, not user-created).
 - `Alert` — a user's subscription to `category + channel`; `@@unique([userId, categoryId, channel])` prevents duplicates at the DB level (backed by an app-layer check in `alerts.service.ts` for a friendlier 409 before the constraint would even fire).
-- `Event` / `Notification` — not yet driven by real logic (Epics 4–5); modeled in the schema but no service layer exists for them yet.
+- `Event` — created by `modules/events/` (Epic 4) via the admin trigger endpoint; `triggeredById` records which admin fired it, `payload` is a JSON-stringified blob (SQLite has no native JSON column type here) of extra mock data.
+- `Notification` — not yet driven by real logic (Epic 5's matcher/dispatcher); modeled in the schema but no service layer exists for it yet.
 
 Migrations live in `prisma/migrations/`. Note: `prisma migrate dev` requires a TTY and doesn't work in a non-interactive shell here — migrations in this project so far were created by generating the SQL diff (`prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`) into a hand-made timestamped migration folder, then applying it with `prisma migrate deploy` (see `.claude/rules/prisma-migration.md`).
 
@@ -124,11 +137,11 @@ This creates a deliberate three-way circular import — `api.ts` → `router.ts`
 1. `POST /api/auth/signup` or `/login` → backend issues a JWT (`{ userId, role }` payload, `jsonwebtoken`, expiry via `JWT_EXPIRES_IN`) and returns it in the JSON body (not a cookie — the whole app uses header-based auth by design).
 2. The frontend's `auth.store.ts` persists the token to `localStorage` and attaches it as `Authorization: Bearer <token>` on every request via `src/lib/api.ts`.
 3. `requireAuth` middleware verifies the token per-request and populates `req.user`; there is no server-side session store — the JWT itself is the credential, valid until it expires.
-4. Role-gated routes (none yet in the API beyond the `role` field existing — Epic 6 adds admin-only endpoints) add `requireRole("admin")` after `requireAuth` in the route chain. The frontend router mirrors this with `meta.roles` on route records.
+4. Role-gated routes add `requireRole(Role.ADMIN)` after `requireAuth` in the route chain — first used by `/api/admin/events/trigger` (Epic 4); Epic 6 adds more under the same `/api/admin/*` prefix. The frontend router mirrors this with `meta.roles` on route records (not yet exercised by an actual admin page — that's Epic 6).
 
 ## API testing (`bruno/`)
 
-A Bruno collection mirrors the live API, organized to match `src/modules/`: `bruno/auth/`, `bruno/categories/`, `bruno/alerts/`. Each folder has a `folder.bru` with a `seq` so the whole collection runs in dependency order (`auth` → `categories` → `alerts`) when executed together — `auth/Login.bru` captures the JWT into a runtime variable (`bru.setVar("token", ...)`) that every other authenticated request reuses via `auth: bearer` + `{{token}}`. Per `.claude/rules/bruno.md`, every new/changed route gets a matching request here. Run the whole thing with:
+A Bruno collection mirrors the live API, organized to match `src/modules/`: `bruno/auth/`, `bruno/categories/`, `bruno/alerts/`, `bruno/admin/`. Each folder has a `folder.bru` with a `seq` so the whole collection runs in dependency order (`auth` → `categories` → `alerts` → `admin`) when executed together — `auth/Login.bru` authenticates as the seeded admin and captures the JWT into a runtime variable (`bru.setVar("token", ...)`) that every other authenticated request reuses via `auth: bearer` + `{{token}}`. Per `.claude/rules/bruno.md`, every new/changed route gets a matching request here. Run the whole thing with:
 ```
 npx @usebruno/cli run bruno -r --env Local
 ```

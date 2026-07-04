@@ -3,6 +3,7 @@ import { errorHandler } from "~/middleware/error.middleware.js";
 import { alertsRouter } from "~/modules/alerts/alerts.routes.js";
 import { authRouter } from "~/modules/auth/auth.routes.js";
 import { categoriesRouter } from "~/modules/categories/categories.routes.js";
+import { eventsRouter } from "~/modules/events/events.routes.js";
 import { logger } from "~/utils/logger.js";
 
 export const app = express();
@@ -17,5 +18,6 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRouter);
 app.use("/api/categories", categoriesRouter);
 app.use("/api/alerts", alertsRouter);
+app.use("/api/admin/events", eventsRouter);
 
 app.use(errorHandler);
