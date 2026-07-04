@@ -16,3 +16,7 @@ body:json {
     "password": "password123"
   }
 }
+
+script:post-response {
+  bru.setVar("token", res.body.token);
+}
