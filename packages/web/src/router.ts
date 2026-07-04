@@ -1,6 +1,9 @@
-import type { Role } from "@app/shared";
+import { Role } from "@app/shared";
 import { createRouter, createWebHistory } from "vue-router";
+import AdminLayout from "@/layouts/AdminLayout.vue";
 import AuthenticatedLayout from "@/layouts/AuthenticatedLayout.vue";
+import AdminTriggerEventPage from "@/pages/AdminTriggerEventPage.vue";
+import AdminUsersPage from "@/pages/AdminUsersPage.vue";
 import DashboardPage from "@/pages/DashboardPage.vue";
 import LoginPage from "@/pages/LoginPage.vue";
 import SignupPage from "@/pages/SignupPage.vue";
@@ -22,7 +25,19 @@ const router = createRouter({
       path: "/",
       component: AuthenticatedLayout,
       meta: { requiresAuth: true },
-      children: [{ path: "", name: "dashboard", component: DashboardPage }],
+      children: [
+        { path: "", name: "dashboard", component: DashboardPage },
+        {
+          path: "admin",
+          component: AdminLayout,
+          meta: { roles: [Role.ADMIN] },
+          children: [
+            { path: "trigger-event", name: "admin-trigger-event", component: AdminTriggerEventPage },
+            { path: "users", name: "admin-users", component: AdminUsersPage },
+            { path: "", redirect: { name: "admin-trigger-event" } },
+          ],
+        },
+      ],
     },
     { path: "/:pathMatch(.*)*", redirect: "/" },
   ],

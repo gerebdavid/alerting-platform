@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col gap-6">
+  <div class="mx-auto flex max-w-3xl flex-col gap-6">
     <BaseCard title="Create an alert">
       <AlertForm :categories="categoriesStore.categories" @create="handleCreate" />
       <p v-if="alertsStore.error" class="mt-2 text-sm text-danger-600">{{ alertsStore.error }}</p>

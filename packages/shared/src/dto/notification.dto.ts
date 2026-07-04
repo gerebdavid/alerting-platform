@@ -4,7 +4,7 @@ export interface NotificationLogEntry {
   id: string;
   eventId: string;
   eventTitle: string;
-  alertId: string;
+  alertId: string | null;
   userId: string;
   userEmail: string;
   channel: ChannelType;
