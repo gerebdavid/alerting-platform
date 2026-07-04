@@ -2,6 +2,7 @@ export * from "./enums.js";
 export * from "./dto/auth.dto.js";
 export * from "./dto/user.dto.js";
 export * from "./dto/alert.dto.js";
+export * from "./dto/category.dto.js";
 export * from "./dto/event.dto.js";
 export * from "./dto/notification.dto.js";
 export * from "./schemas/auth.schema.js";

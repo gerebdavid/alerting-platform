@@ -1,0 +1,26 @@
+meta {
+  name: Create
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/alerts
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "categoryCode": "breaking-news",
+    "channel": "email"
+  }
+}
+
+script:post-response {
+  bru.setVar("alertId", res.body.id);
+}

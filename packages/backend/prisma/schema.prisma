@@ -39,6 +39,7 @@ model Alert {
   category      Category       @relation(fields: [categoryId], references: [id])
   notifications Notification[]
 
+  @@unique([userId, categoryId, channel])
   @@index([categoryId, channel, isEnabled])
 }
 
