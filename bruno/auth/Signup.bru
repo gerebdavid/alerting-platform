@@ -19,4 +19,5 @@ body:json {
 
 script:post-response {
   bru.setVar("token", res.body.token);
+  bru.setVar("signupUserId", res.body.user.id);
 }

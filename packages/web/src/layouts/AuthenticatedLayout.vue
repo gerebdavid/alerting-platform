@@ -14,7 +14,7 @@
         <BaseButton variant="secondary" @click="handleLogout">Logout</BaseButton>
       </div>
     </header>
-    <main class="mx-auto max-w-3xl px-6 py-8">
+    <main class="px-6 py-8">
       <router-view />
     </main>
   </div>

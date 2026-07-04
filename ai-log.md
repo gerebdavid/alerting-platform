@@ -1028,3 +1028,17 @@ Fixed. The nav link now lives in `AuthenticatedLayout.vue` (same place as before
 
 <ide_opened_file>The user opened the file /Users/davidgereb/www/sonrisa-interview-project/packages/backend/src/modules/alerts/alerts.service.ts in the IDE. This may or may not be related to the current task.</ide_opened_file>
 did you try to delete an alert? when i try i get Foreign key constraint violated on the foreign key
+
+## User — 2026-07-04T11:55:23.020Z
+
+<ide_opened_file>The user opened the file /Users/davidgereb/www/sonrisa-interview-project/SCOPE.md in the IDE. This may or may not be related to the current task.</ide_opened_file>
+u can create the nex admin page, user list, also make sure there will be a sidebar on the admin page where you can toggle between admin pages, first create a plan, after i review and confirm you can start the implementation
+
+## User — 2026-07-04T12:20:15.451Z
+
+<ide_opened_file>The user opened the file /Users/davidgereb/www/sonrisa-interview-project/tsconfig.base.json in the IDE. This may or may not be related to the current task.</ide_opened_file>
+some suggestions:
+
+1. the sidebar should be aligned all to the left, so you can leave bigger space to the admin contents
+2. sidebar should have a background so it can be differentiate from the rest of the page
+3. on user page, there should be a save button, so instead of sending a request whenever i change the active or the user role, it will send the request when i click save. also the save button should be enabled when there was a change
