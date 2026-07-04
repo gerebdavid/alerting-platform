@@ -278,3 +278,160 @@ Both alias configurations are done and fully verified (dev + build for both pack
 **Both packages** hit the same snag: TypeScript 6 deprecated `baseUrl` (`paths` now resolve relative to the tsconfig file itself) — removed `baseUrl` from both configs to fix the build-blocking warning.
 
 I removed the throwaway frontend test file (`lib/greeting.ts`) after confirming the alias worked, since it had no real purpose — kept the backend's `logger.ts` since it's genuinely useful scaffolding from the original plan.
+
+## User — 2026-07-04T07:43:04.979Z
+
+<ide_opened_file>The user opened the file /Users/davidgereb/www/sonrisa-interview-project/packages/web/tsconfig.json in the IDE. This may or may not be related to the current task.</ide_opened_file>
+lets plan what are the next steps
+
+## Claude — 2026-07-04T07:45:20.196Z
+
+I don't have context yet on what "next steps" refers to — this looks like a fresh conversation with no prior task established. Let me check the repo state to understand what's in progress.
+
+Now I have the context. Let me read SCOPE.md to see the current progress and planned phases.
+
+## User — 2026-07-04T07:46:43.183Z
+
+<task-notification>
+<task-id>a4884ce42e3bd37dc</task-id>
+<tool-use-id>toolu_01PcL1Jt3QvGuEm9cqQ7sMba</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-davidgereb-www-sonrisa-interview-project/d874a8a7-aeee-4aae-adb6-4dda2e4fe1b0/tasks/a4884ce42e3bd37dc.output</output-file>
+<status>completed</status>
+<summary>Agent "Design auth implementation plan" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I have everything needed. Here's the concrete implementation plan for finishing Epic 2.
+
+## Confirmed current state
+
+- `packages/backend/src/index.ts` just imports `app` and calls `.listen`. No dotenv loading anywhere in `src/` despite `dotenv` already being a devDependency and `.env`/`.env.example` already existing (`DATABASE_URL`, `PORT`). This is the gap SCOPE.md calls "env config" — I'll close it as part of this plan since JWT needs a secret from env.
+- `src/app.ts` is a bare Express app with `express.json()` and `/api/health`.
+- `prisma/schema.prisma` `User` model already has everything auth needs: `id`, `email` (unique), `passwordHash`, `role: String @default("user")`, `isActive`, `createdAt`. No migration needed for auth itself.
+- `@app/shared` already has `signupSchema`/`loginSchema` (zod), `SignupRequest`/`LoginRequest`/`AuthResponse` DTOs, `UserResponse`, and the `Role` enum (`"user" | "admin"`). Nothing to add on the shared side.
+- No test runner (`vitest`) configured anywhere yet in the repo (no config file, no `test` script). SCOPE.md assigns exhaustive Vitest usage to the matching/dispatch engine (epics 5/7), not epic 2.
+- Better-sqlite3 (native) is already a working precedent for native modules in this stack, and migrations/build already succeed with it, so a native `bcrypt` is safe to introduce rather than defaulting to `bcryptjs`.
+
+## New dependencies (packages/backend/package.json)
+
+- `dependencies`: `jsonwebtoken`, `bcrypt`
+- `devDependencies`: `@types/jsonwebtoken`, `@types/bcrypt`
+
+Rationale: `bcrypt` (native, via node-gyp) mirrors the project's existing acceptance of native modules (`better-sqlite3`) rather than introducing a second, inconsistent hashing strategy; `bcryptjs` would only be the fallback if native builds proved to be a problem in CI, which isn't the case here. `dotenv` is already installed — just needs to actually be loaded.
+
+## Env config (closing the Epic 1 gap, minimal)
+
+- Add `JWT_SECRET` (and optionally `JWT_EXPIRES_IN`, default handled in code, e.g. `"1h"`) to `packages/backend/.env` and `.env.example`.
+- Add a single `src/config/env.ts` that calls `dotenv.config()` once and exports a small typed `env` object (`{ port, databaseUrl, jwtSecret, jwtExpiresIn }`), throwing early if `JWT_SECRET` is missing. Import this at the very top of `src/index.ts` (and have `db/prisma.ts` and any JWT helper import `env` instead of raw `process.env` directly) so config loading has one home instead of scattering `dotenv.config()` calls. This is the natural "env config" piece SCOPE.md flags as outstanding, done minimally rather than as a bigger config framework.
+
+## Directory/module structure
+
+Introduce a `src/modules/` convention now, since alerts/events will need the same shape in Epic 3+, but build only the `auth` module:
+
+```
+src/modules/auth/
+  auth.service.ts     # signup/login business logic: hash, compare, prisma calls, JWT issuance
+  auth.controller.ts  # Express handlers: parse/validate body with zod schemas, call service, shape response
+  auth.routes.ts       # Router: POST /signup, POST /login -&gt; controller
+src/middleware/
+  auth.middleware.ts   # requireAuth: verifies Bearer token, attaches req.user, 401 on failure
+  role.middleware.ts   # requireRole(role): 403 if req.user.role !== role
+src/lib/jwt.ts          # signToken(payload), verifyToken(token) — pure helpers, no Express coupling
+src/lib/password.ts     # hashPassword(plain), comparePassword(plain, hash) — thin bcrypt wrappers
+src/config/env.ts        # env loader described above
+```
+
+This mirrors the existing minimal flat layout (`db/`, `utils/`) by adding two new top-level dirs (`modules/`, `middleware/`) plus `lib/` for pure helpers — no repository/DI layers, no over-abstraction, consistent with the current single-file-per-concern style.
+
+## JWT payload &amp; helpers (`src/lib/jwt.ts`)
+
+Payload shape: `{ userId: string; role: Role }` (email intentionally omitted to keep token small; email isn't needed for authorization checks). `iat`/`exp` handled by `jsonwebtoken` itself via the `expiresIn` sign option (from `env.jwtExpiresIn`, e.g. `"1h"`).
+
+```ts
+export interface JwtPayload { userId: string; role: Role }
+export function signToken(payload: JwtPayload): string
+export function verifyToken(token: string): JwtPayload  // throws on invalid/expired
+```
+
+Uses `env.jwtSecret` from `src/config/env.ts`. Kept framework-agnostic so it's trivially unit-testable.
+
+## Password helpers (`src/lib/password.ts`)
+
+```ts
+export function hashPassword(plain: string): Promise&lt;string&gt;   // bcrypt.hash(plain, 10)
+export function comparePassword(plain: string, hash: string): Promise&lt;boolean&gt;
+```
+
+## Auth service (`src/modules/auth/auth.service.ts`)
+
+- `signup(input: SignupRequest): Promise&lt;AuthResponse&gt;` — check email uniqueness (409 if taken, via a thrown typed error), hash password, `prisma.user.create`, issue token, map to `UserResponse` (exclude `passwordHash`).
+- `login(input: LoginRequest): Promise&lt;AuthResponse&gt;` — find by email, 401 if not found or `!isActive` or password mismatch (same generic error/message for both to avoid user enumeration), issue token.
+
+Throw a small custom error class, e.g. `src/lib/http-error.ts` exporting `HttpError` (`statusCode`, `message`), reused by controller/middleware. This is the one shared error primitive worth introducing — keeps it minimal (no error-code taxonomy, no problem-details spec).
+
+## Controller &amp; routes
+
+- `auth.controller.ts`: parses `req.body` with `signupSchema`/`loginSchema` via `.safeParse`, returns 400 with zod issues on failure, otherwise calls the service and returns `201`/`200` with the `AuthResponse` JSON.
+- `auth.routes.ts`: `router.post("/signup", signup)`, `router.post("/login", login)`.
+- Mount in `app.ts`: `app.use("/api/auth", authRouter)`.
+
+## Middleware
+
+- `auth.middleware.ts` — `requireAuth(req, res, next)`: reads `Authorization` header, expects `Bearer &lt;token&gt;`, 401 if missing/malformed, calls `verifyToken`, catches throw → 401, attaches `req.user = payload` (extend Express's `Request` type via a `src/types/express.d.ts` augmentation file, matching how the project already does typed module boundaries).
+- `role.middleware.ts` — `requireRole(role: Role)` returns middleware: 403 if `req.user.role !== role` (401 if `req.user` missing, defensive but shouldn't happen since it's chained after `requireAuth`).
+- No protected routes exist yet in Epic 2 scope (alerts CRUD is Epic 3), so these middlewares are built and exported but not yet attached to any route beyond maybe a small `/api/auth/me` convenience endpoint — optional, low-risk addition that gives you something concrete to curl-test the middleware against without waiting for Epic 3. I'd include it since it's the natural way to verify auth end-to-end.
+
+## Error handling
+
+Express 5 does auto-forward rejected promises from async handlers to `next(err)`, so no `express-async-handler`-style wrapper is needed — controllers can be plain `async (req, res) =&gt; {...}` and thrown errors/rejections are caught automatically. Add one centralized error-handling middleware, e.g. `src/middleware/error.middleware.ts`, mounted last in `app.ts`: if `err instanceof HttpError` respond with its status/message, else log and respond 500 with a generic message. This is the minimal shared error-response shape (`{ error: string }`) — no need for anything more elaborate given the current scope.
+
+## Seed script changes (`prisma/seed.ts`)
+
+Add a hardcoded admin alongside category seeding, using the new `hashPassword` helper:
+
+```ts
+import { hashPassword } from "../src/lib/password.js";
+import { Role } from "@app/shared";
+...
+const passwordHash = await hashPassword("Admin123!"); // documented in README/.env.example comment
+await prisma.user.upsert({
+  where: { email: "admin@example.com" },
+  update: {},
+  create: { email: "admin@example.com", passwordHash, role: Role.ADMIN },
+});
+```
+
+Idempotent via `upsert`, matching the existing category-seeding style. Update `console.log` summary line accordingly.
+
+## app.ts wiring
+
+```ts
+import { authRouter } from "~/modules/auth/auth.routes.js";
+import { errorHandler } from "~/middleware/error.middleware.js";
+...
+app.use("/api/auth", authRouter);
+...
+app.use(errorHandler); // last
+```
+
+`src/index.ts` should `import "~/config/env.js"` (side-effect load) before importing `app`, ensuring env vars are populated before `app.ts`/`prisma.ts` read them.
+
+## Verification steps
+
+Manual curl flow (documented, not automated, given no test runner exists yet):
+1. `npm run db:seed -w @app/backend` → creates admin.
+2. `curl -X POST localhost:3000/api/auth/signup -d '{"email":"user@example.com","password":"password123"}' -H 'Content-Type: application/json'` → expect 201 + token.
+3. `curl -X POST localhost:3000/api/auth/login -d '{"email":"admin@example.com","password":"Admin123!"}' ...` → expect 200 + token, `user.role === "admin"`.
+4. `curl localhost:3000/api/auth/me -H "Authorization: Bearer &lt;token&gt;"` → expect 200 with user info; omit header → 401; garbage token → 401.
+5. If an admin-only test route is added temporarily (or once Epic 3 lands), hit it with a non-admin token → expect 403.
+
+On unit tests: I'd flag adding `vitest` now (as a backend devDependency + minimal `vitest.config.ts` + `test` script) with 2-3 pure-function tests for `src/lib/jwt.ts` and `src/lib/password.ts` (sign/verify round-trip, expired-token rejection, hash/compare round-trip). These are cheap, framework-free, and de-risk the exact primitives everything else depends on — worth doing now rather than deferring entirely to Epic 7, without trying to cover controllers/middleware/integration yet (that's reasonably left to Epic 7 alongside matcher/dispatcher tests as SCOPE.md states).
+
+### Critical Files for Implementation
+- packages/backend/src/lib/jwt.ts
+- packages/backend/src/lib/password.ts
+- packages/backend/src/modules/auth/auth.service.ts
+- packages/backend/src/middleware/auth.middleware.ts
+- packages/backend/src/app.ts
+- packages/backend/prisma/seed.ts
+- packages/backend/src/config/env.ts</result>
+<usage><subagent_tokens>23817</subagent_tokens><tool_uses>15</tool_uses><duration_ms>85676</duration_ms></usage>
+</task-notification>
