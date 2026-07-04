@@ -9,6 +9,8 @@ import { prisma } from "~/db/prisma.js";
 import { HttpError } from "~/lib/http-error.js";
 import type { EventSource } from "~/modules/events/event-source.js";
 import { MockEventSource } from "~/modules/events/mock-event-source.js";
+import { dispatch } from "~/modules/notifications/dispatcher.js";
+import { matchAlerts } from "~/modules/notifications/matcher.js";
 
 const eventSource: EventSource = new MockEventSource();
 
@@ -61,6 +63,15 @@ export async function triggerMockEvent(
     include: { category: true },
   });
 
-  // Epic 5 will replace this with real matching/dispatch results.
-  return { event: toEventResponse(event), notifications: [] };
+  const candidateAlerts = await prisma.alert.findMany({
+    where: { categoryId: category.id },
+    include: { user: true },
+  });
+  const matched = matchAlerts(candidateAlerts, { categoryId: category.id });
+  const notifications = await dispatch(
+    { id: event.id, title: event.title, severity: event.severity as EventSeverity },
+    matched,
+  );
+
+  return { event: toEventResponse(event), notifications };
 }

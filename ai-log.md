@@ -910,3 +910,65 @@ what we discussed regarding ~?
 
 <ide_opened_file>The user opened the file /Users/davidgereb/www/sonrisa-interview-project/packages/backend/src/modules/events/mock-event-source.ts in the IDE. This may or may not be related to the current task.</ide_opened_file>
 man, @packages/backend/src/modules/events/mock-event-source.ts look at this file for example, do you think its good on the import
+
+## User — 2026-07-04T10:34:25.187Z
+
+<ide_selection>The user selected the lines 4 to 4 from /Users/davidgereb/www/sonrisa-interview-project/packages/backend/src/modules/events/events.routes.ts:
+requireRole
+
+This may or may not be related to the current task.</ide_selection>
+okay whats next?
+
+## User — 2026-07-04T10:36:30.980Z
+
+how should i imagine, give me a flow example
+
+## User — 2026-07-04T10:40:40.553Z
+
+create the plan file
+
+## Claude — 2026-07-04T10:43:36.808Z
+
+This is Epic 5, a new task — I'll overwrite the plan file. Let me quickly confirm the exact current state of the Notification model and the events module before writing the final design.
+
+Good — `Alert` already has a `user` relation, so no schema change is needed to get the recipient's email during dispatch. Let me write the plan.
+
+## User — 2026-07-04T10:44:05.574Z
+
+<ide_opened_file>The user opened the file /Users/davidgereb/www/sonrisa-interview-project/SCOPE.md in the IDE. This may or may not be related to the current task.</ide_opened_file>
+you can start building it
+
+## User — 2026-07-04T10:52:09.261Z
+
+<ide_opened_file>The user opened the file /Users/davidgereb/www/sonrisa-interview-project/packages/backend/src/modules/events/events.routes.ts in the IDE. This may or may not be related to the current task.</ide_opened_file>
+so if 4 users has set up alerts for the same category, i should see 4 new notification rows
+
+## User — 2026-07-04T10:52:48.252Z
+
+so if 4 users has set up alerts for the same category and i create an event, i should see 4 new rows in notification table?
+
+## Claude — 2026-07-04T10:53:06.300Z
+
+Yes, correct — the matching is per-**alert**, not per-user, and it's not scoped to a single user at all.
+
+Look at `events.service.ts`:
+```ts
+const candidateAlerts = await prisma.alert.findMany({
+  where: { categoryId: category.id },   // no userId filter — pulls alerts across ALL users
+  include: { user: true },
+});
+const matched = matchAlerts(candidateAlerts, { categoryId: category.id });
+const notifications = await dispatch(event, matched);
+```
+
+So if 4 different users each have one enabled alert for that category (say, `markets`), all 4 come back as candidates, all 4 pass `matchAlerts` (category matches + `isEnabled`), and `dispatcher.ts` loops over each one — meaning:
+- 4 calls to `channel.send()` (one per alert, using whichever channel that specific alert is set to)
+- 4 `prisma.notification.create()` calls → **4 rows** in the `Notification` table
+- 4 entries in the `notifications` array returned by `POST /api/admin/events/trigger`
+
+One nuance worth flagging: it's per-**alert**, not per-user. If one of those 4 users has *two* alerts for that category (e.g. one on `email`, one on `slack`), you'd get 5 rows total, not 4 — that user gets notified twice, once per channel they subscribed on. That matches the data model (`Alert` is the unit of "user wants X category on Y channel"), so it's the correct behavior, not a bug.
+
+## User — 2026-07-04T11:02:55.988Z
+
+<ide_opened_file>The user opened the file /Users/davidgereb/www/sonrisa-interview-project/SCOPE.md in the IDE. This may or may not be related to the current task.</ide_opened_file>
+perfect, i guess the next steps should be creating an admin ui to run evnets?

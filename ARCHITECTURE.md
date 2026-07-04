@@ -33,7 +33,7 @@ HTTP request
   ← errors bubble to next(err) → middleware/error.middleware.ts → { error: string } JSON response
 ```
 
-Every feature module (`src/modules/<name>/`) follows the same three-file shape — see `modules/auth/` as the reference implementation, replicated by `modules/categories/`, `modules/alerts/`, and `modules/events/`:
+Every feature module (`src/modules/<name>/`) follows the same three-file shape — see `modules/auth/` as the reference implementation, replicated by `modules/categories/`, `modules/alerts/`, and `modules/events/`. (`modules/notifications/` is the one exception — it's a service-only module invoked internally by `modules/events/`, not exposed via its own routes, so it has no `*.routes.ts`/`*.controller.ts`.)
 
 - `*.routes.ts` — Express `Router`, mounts middleware and maps HTTP verbs to controller handlers.
 - `*.controller.ts` — thin: built with `handler()` (`src/lib/handler.ts`), which zod-validates `{ params?, query?, body? }` and hands the parsed data to the callback as a typed third argument, auto-throwing `HttpError(400, ...)` on validation failure and forwarding thrown/rejected errors to `next()`.
@@ -49,7 +49,16 @@ interface EventSource {
   generate(input: { categoryCode: AlertCategory; severity?: EventSeverity }): GeneratedEvent;
 }
 ```
-`mock-event-source.ts`'s `MockEventSource` is the only implementation today — a handful of canned title/description templates per category, a fixed `sourceName` per category, and a random `severity` fallback when the caller doesn't specify one. `events.service.ts` holds a single module-level `const eventSource: EventSource = new MockEventSource()`; swapping in a real source later is a one-line change. `POST /api/admin/events/trigger` (admin-only) is the only way to create an `Event` row right now — it returns `TriggerMockEventResponse { event, notifications: [] }`; the `notifications` array is a deliberate stub until Epic 5 builds the matcher/dispatcher that will populate it.
+`mock-event-source.ts`'s `MockEventSource` is the only implementation today — a handful of canned title/description templates per category, a fixed `sourceName` per category, and a random `severity` fallback when the caller doesn't specify one. `events.service.ts` holds a single module-level `const eventSource: EventSource = new MockEventSource()`; swapping in a real source later is a one-line change. `POST /api/admin/events/trigger` (admin-only) is the only way to create an `Event` row right now; after creating it, `events.service.ts` immediately hands off to `modules/notifications/` (below) to find and notify matching alerts, returning the real results in `TriggerMockEventResponse { event, notifications }`.
+
+### Matching & dispatch (`src/modules/notifications/`)
+
+This is the pipeline that runs synchronously inside `triggerMockEvent` right after the `Event` row is created — there's no queue or async job, it's plain sequential `await`s within the same request:
+
+1. **Candidate fetch** — `events.service.ts` queries `prisma.alert.findMany({ where: { categoryId }, include: { user: true } })`: every alert for the event's category, enabled or not.
+2. **Matching** (`matcher.ts`) — `matchAlerts(alerts, event)` is a pure function (no DB/IO) that filters candidates down to `categoryId matches && isEnabled`. It's generic over the input shape, so it accepts the richer Prisma-shaped alerts (with `user` attached) and returns that same richer type — no separate mapping step. Deliberately kept pure and DB-free (per SCOPE.md's "pure alert-matching engine" requirement) so future rules (severity thresholds, quiet hours, dedup) are testable additions to this one function rather than a growing Prisma `where` clause. Unit-tested in `matcher.test.ts`.
+3. **Dispatch** (`dispatcher.ts`) — for each matched alert, looks up the right `NotificationChannel` via `channel-registry.ts`'s `getChannel(type)`, calls `send()` (wrapped in try/catch — a channel throwing is recorded as a `"failed"` `Notification` instead of failing the whole trigger request), then `prisma.notification.create(...)` and maps to a `NotificationLogEntry`.
+4. **Channels** (`notification-channel.ts` + `channels/`) — `EmailChannel`/`SlackChannel` both implement the same `NotificationChannel` interface and, per the fixed design decision, just log a line (`logger.info`) and report `"sent"` instead of calling real SMTP/Slack APIs. `channel-registry.ts` is the one place that maps `ChannelType` → implementation; adding a real channel later means writing one new class and registering it there.
 
 ### Cross-cutting building blocks (`src/lib/`, `src/middleware/`, `src/config/`)
 
@@ -75,7 +84,7 @@ User ──< Alert >── Category ──< Event
 - `Category` — the fixed set of alert categories (seeded, not user-created).
 - `Alert` — a user's subscription to `category + channel`; `@@unique([userId, categoryId, channel])` prevents duplicates at the DB level (backed by an app-layer check in `alerts.service.ts` for a friendlier 409 before the constraint would even fire).
 - `Event` — created by `modules/events/` (Epic 4) via the admin trigger endpoint; `triggeredById` records which admin fired it, `payload` is a JSON-stringified blob (SQLite has no native JSON column type here) of extra mock data.
-- `Notification` — not yet driven by real logic (Epic 5's matcher/dispatcher); modeled in the schema but no service layer exists for it yet.
+- `Notification` — one row per dispatch attempt, created by `modules/notifications/dispatcher.ts` (Epic 5); `status`/`detail` record the outcome (`"sent"` for the mock channels today, `"failed"` if a channel throws).
 
 Migrations live in `prisma/migrations/`. Note: `prisma migrate dev` requires a TTY and doesn't work in a non-interactive shell here — migrations in this project so far were created by generating the SQL diff (`prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`) into a hand-made timestamped migration folder, then applying it with `prisma migrate deploy` (see `.claude/rules/prisma-migration.md`).
 
@@ -148,4 +157,4 @@ npx @usebruno/cli run bruno -r --env Local
 
 ## Testing
 
-`vitest` is configured per-package (currently only `packages/backend`). Coverage so far is limited to pure-function helpers (`lib/jwt.ts`, `lib/password.ts`) — controller/service/integration test coverage is deferred to Epic 7 per SCOPE.md, so don't read the current test suite as representative of what *should* be tested long-term, just what's been prioritized so far.
+`vitest` is configured per-package (currently only `packages/backend`). Coverage so far is limited to pure-function helpers (`lib/jwt.ts`, `lib/password.ts`, `modules/notifications/matcher.ts`) — controller/service/integration test coverage (including the dispatcher, which does real I/O) is deferred to Epic 7 per SCOPE.md, so don't read the current test suite as representative of what *should* be tested long-term, just what's been prioritized so far.
