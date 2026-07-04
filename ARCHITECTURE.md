@@ -72,10 +72,18 @@ Migrations live in `prisma/migrations/`. Note: `prisma migrate dev` requires a T
 
 ## Frontend (`packages/web`)
 
-Vue 3 + Vite + TypeScript + Tailwind v4 (CSS-first config, no `tailwind.config.*`) + Vue Router + Pinia.
+Vue 3 + Vite + TypeScript + Tailwind v4 (CSS-first config) + Vue Router + Pinia.
 
 - `@/*` → `packages/web/src/*` (mirrors the backend's `~/*` alias; configured in both `tsconfig.json` `paths` for type-checking and `vite.config.ts` `resolve.alias` for the actual bundler resolution, since Vite doesn't read `tsconfig.json` paths on its own).
 - Vite dev server proxies `/api/*` → `http://localhost:3000` (the backend), so the frontend always calls relative `/api/...` paths — no CORS config needed in dev, and the same relative paths work unmodified once both are served from one origin in production.
+
+### Design tokens (`src/tailwind.config.css`)
+
+Tailwind v4 has no `tailwind.config.js` — theme customization is CSS-first via an `@theme` block. `src/tailwind.config.css` defines two kinds of tokens:
+- **Brand palettes as full numeric scales** — `primary-{50..900}`, `secondary-{50..900}`, `danger-{50..900}`, same shape as Tailwind's built-in palettes, so any shade is available as a utility (`bg-primary-900`, `text-danger-600`, `border-primary-700`, ...). Components pick the specific shade they need, same as they would with a built-in palette like `slate-*`.
+- **Neutral single-value tokens** — `surface`, `background`, `border`, `text`/`-muted`/`-subtle`, each aliased to one fixed shade (no numeric scale) since these represent one fixed role (page background, card border, body text) rather than a brand color needing a range.
+
+It's imported into `src/style.css` right after `@import "tailwindcss"`. Every component uses these tokens instead of Tailwind's raw palette classes (`bg-slate-900`, `text-red-600`, etc.) so the app's whole palette can be changed by editing this one file. The current hex values intentionally match Tailwind's `slate` (primary/secondary) and `red` (danger) palettes 1:1 — this is a renaming/structuring layer, not a redesign.
 
 ### App shell & routing (`src/main.ts`, `src/router.ts`)
 

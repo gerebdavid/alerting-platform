@@ -1,3 +1,29 @@
+<template>
+  <div class="flex items-center justify-between gap-4 border-b border-border py-3 last:border-b-0">
+    <div>
+      <p class="font-medium text-text">{{ alert.categoryLabel }}</p>
+      <label class="mt-1 flex items-center gap-2 text-sm text-text-subtle">
+        <input
+          type="checkbox"
+          :checked="alert.isEnabled"
+          @change="emit('toggleEnabled', ($event.target as HTMLInputElement).checked)"
+        />
+        Enabled
+      </label>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="w-32">
+        <BaseSelect
+          :model-value="alert.channel"
+          :options="channelOptions"
+          @update:model-value="emit('updateChannel', $event as ChannelType)"
+        />
+      </div>
+      <BaseButton variant="danger" @click="handleRemove">Remove</BaseButton>
+    </div>
+  </div>
+</template>
+
 <script setup lang="ts">
 import type { AlertResponse, ChannelType } from "@app/shared";
 import BaseButton from "@/components/ui/BaseButton.vue";
@@ -22,29 +48,3 @@ function handleRemove() {
   }
 }
 </script>
-
-<template>
-  <div class="flex items-center justify-between gap-4 border-b border-slate-100 py-3 last:border-b-0">
-    <div>
-      <p class="font-medium text-slate-800">{{ alert.categoryLabel }}</p>
-      <label class="mt-1 flex items-center gap-2 text-sm text-slate-500">
-        <input
-          type="checkbox"
-          :checked="alert.isEnabled"
-          @change="emit('toggleEnabled', ($event.target as HTMLInputElement).checked)"
-        />
-        Enabled
-      </label>
-    </div>
-    <div class="flex items-center gap-3">
-      <div class="w-32">
-        <BaseSelect
-          :model-value="alert.channel"
-          :options="channelOptions"
-          @update:model-value="emit('updateChannel', $event as ChannelType)"
-        />
-      </div>
-      <BaseButton variant="danger" @click="handleRemove">Remove</BaseButton>
-    </div>
-  </div>
-</template>

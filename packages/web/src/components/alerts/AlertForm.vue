@@ -1,3 +1,24 @@
+<template>
+  <form class="flex flex-col gap-4 sm:flex-row sm:items-end" @submit.prevent="handleSubmit">
+    <div class="flex-1">
+      <BaseSelect
+        v-model="categoryCode"
+        label="Category"
+        :options="[{ value: '', label: 'Select a category' }, ...categories.map((c) => ({ value: c.code, label: c.label }))]"
+      />
+    </div>
+    <div class="flex-1">
+      <BaseSelect
+        v-model="channel"
+        label="Channel"
+        :options="[{ value: '', label: 'Select a channel' }, ...channelOptions]"
+      />
+    </div>
+    <BaseButton type="submit" :disabled="isSubmitting">Add alert</BaseButton>
+    <p v-if="error" class="text-sm text-danger-600">{{ error }}</p>
+  </form>
+</template>
+
 <script setup lang="ts">
 import type { CategoryResponse, CreateAlertRequest } from "@app/shared";
 import { createAlertSchema } from "@app/shared";
@@ -34,24 +55,3 @@ function handleSubmit() {
   emit("create", parsed.data);
 }
 </script>
-
-<template>
-  <form class="flex flex-col gap-4 sm:flex-row sm:items-end" @submit.prevent="handleSubmit">
-    <div class="flex-1">
-      <BaseSelect
-        v-model="categoryCode"
-        label="Category"
-        :options="[{ value: '', label: 'Select a category' }, ...categories.map((c) => ({ value: c.code, label: c.label }))]"
-      />
-    </div>
-    <div class="flex-1">
-      <BaseSelect
-        v-model="channel"
-        label="Channel"
-        :options="[{ value: '', label: 'Select a channel' }, ...channelOptions]"
-      />
-    </div>
-    <BaseButton type="submit" :disabled="isSubmitting">Add alert</BaseButton>
-    <p v-if="error" class="text-sm text-red-600">{{ error }}</p>
-  </form>
-</template>

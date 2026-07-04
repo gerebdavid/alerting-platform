@@ -1,3 +1,22 @@
+<template>
+  <div class="flex flex-col gap-6">
+    <BaseCard title="Create an alert">
+      <AlertForm :categories="categoriesStore.categories" @create="handleCreate" />
+      <p v-if="alertsStore.error" class="mt-2 text-sm text-danger-600">{{ alertsStore.error }}</p>
+    </BaseCard>
+
+    <BaseCard title="Your alerts">
+      <AlertList
+        :alerts="alertsStore.alerts"
+        :is-loading="alertsStore.isLoading"
+        @update-channel="handleUpdateChannel"
+        @toggle-enabled="handleToggleEnabled"
+        @remove="handleRemove"
+      />
+    </BaseCard>
+  </div>
+</template>
+
 <script setup lang="ts">
 import type { ChannelType, CreateAlertRequest } from "@app/shared";
 import { onMounted } from "vue";
@@ -36,22 +55,3 @@ async function handleRemove(id: string) {
   await alertsStore.removeAlert(id);
 }
 </script>
-
-<template>
-  <div class="flex flex-col gap-6">
-    <BaseCard title="Create an alert">
-      <AlertForm :categories="categoriesStore.categories" @create="handleCreate" />
-      <p v-if="alertsStore.error" class="mt-2 text-sm text-red-600">{{ alertsStore.error }}</p>
-    </BaseCard>
-
-    <BaseCard title="Your alerts">
-      <AlertList
-        :alerts="alertsStore.alerts"
-        :is-loading="alertsStore.isLoading"
-        @update-channel="handleUpdateChannel"
-        @toggle-enabled="handleToggleEnabled"
-        @remove="handleRemove"
-      />
-    </BaseCard>
-  </div>
-</template>
