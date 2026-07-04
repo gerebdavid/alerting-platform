@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comparePassword, hashPassword } from "./password.js";
+import { comparePassword, hashPassword } from "~/lib/password.js";
 
 describe("password", () => {
   it("round-trips a hashed password", async () => {

@@ -1,6 +1,6 @@
 import { AlertCategory, Role } from "@app/shared";
-import { prisma } from "../src/db/prisma.js";
-import { hashPassword } from "../src/lib/password.js";
+import { prisma } from "~/db/prisma.js";
+import { hashPassword } from "~/lib/password.js";
 
 const categories: Array<{ code: AlertCategory; label: string }> = [
   { code: AlertCategory.BREAKING_NEWS, label: "Breaking News" },
