@@ -474,3 +474,17 @@ you see its way simpler and maintainable
 ## Claude — 2026-07-04T08:11:07.970Z
 
 Agreed — the controller went from three handlers with repeated `safeParse`/`.success`/throw boilerplate down to three one-liners that just declare their schema and work with already-validated data. Nice pattern to reuse for the alert/event modules coming up in Epic 3.
+
+## User — 2026-07-04T08:12:25.427Z
+
+<ide_opened_file>The user opened the file /Users/davidgereb/www/sonrisa-interview-project/.claude/rules/prisma-migration.md in the IDE. This may or may not be related to the current task.</ide_opened_file>
+okay lets add bruno, i want to test the endpoint using bruno
+
+## User — 2026-07-04T08:17:44.017Z
+
+<ide_opened_file>The user opened the file /Users/davidgereb/www/sonrisa-interview-project/packages/backend/CLAUDE.md in the IDE. This may or may not be related to the current task.</ide_opened_file>
+create a rule in .claude, so after you implement any route you should add it to bruno aswell
+
+## User — 2026-07-04T08:19:37.503Z
+
+nice

@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "name": "Alerts Platform API",
+  "type": "collection",
+  "ignore": ["node_modules", ".git"]
+}
